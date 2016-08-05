@@ -17,33 +17,38 @@
  */
 package org.apache.phoenix.schema.tuple;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.List;
 
 import org.apache.hadoop.hbase.Cell;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
-import org.apache.phoenix.hbase.index.util.GenericKeyValueBuilder;
-import org.apache.phoenix.util.KeyValueUtil;
+import org.apache.phoenix.schema.SortOrder;
+import org.apache.phoenix.schema.types.PInteger;
 
+/**
+ * Tuple that uses the 
+ */
+public class PositionBasedMultiKeyValueTuple extends BaseTuple {
+    private EncodedColumnQualiferCellsList values;
 
-public class MultiKeyValueTuple extends BaseTuple {
-    private List<Cell> values;
+    public PositionBasedMultiKeyValueTuple() {}
     
-    public MultiKeyValueTuple(List<Cell> values) {
-        setKeyValues(values);
+    public PositionBasedMultiKeyValueTuple(List<Cell> values) {
+        checkArgument(values instanceof EncodedColumnQualiferCellsList, "PositionBasedMultiKeyValueTuple only works with lists of type BoundedSkipNullCellsList");
+        this.values = (EncodedColumnQualiferCellsList)values;
     }
     
-    public MultiKeyValueTuple() {
-    }
-
     /** Caller must not modify the list that is passed here */
     @Override
     public void setKeyValues(List<Cell> values) {
-        this.values = values;
+        checkArgument(values instanceof EncodedColumnQualiferCellsList, "PositionBasedMultiKeyValueTuple only works with lists of type BoundedSkipNullCellsList");
+        this.values = (EncodedColumnQualiferCellsList)values;
     }
-    
+
     @Override
     public void getKey(ImmutableBytesWritable ptr) {
-        Cell value = values.get(0);
+        Cell value = values.getFirstCell();
         ptr.set(value.getRowArray(), value.getRowOffset(), value.getRowLength());
     }
 
@@ -54,7 +59,7 @@ public class MultiKeyValueTuple extends BaseTuple {
 
     @Override
     public Cell getValue(byte[] family, byte[] qualifier) {
-        return KeyValueUtil.getColumnLatest(GenericKeyValueBuilder.INSTANCE, values, family, qualifier);
+        return values.getCellForColumnQualifier(PInteger.INSTANCE.getCodec().decodeInt(qualifier, 0, SortOrder.ASC));
     }
 
     @Override
@@ -80,5 +85,4 @@ public class MultiKeyValueTuple extends BaseTuple {
             return false;
         ptr.set(kv.getValueArray(), kv.getValueOffset(), kv.getValueLength());
         return true;
-    }
-}
+    }}

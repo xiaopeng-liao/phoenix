@@ -27,7 +27,7 @@ package org.apache.phoenix.schema;
 public interface PColumn extends PDatum {
 
     /**
-     * @return the name of the column qualifier
+     * @return the name of the column
      */
     PName getName();
 
@@ -60,4 +60,11 @@ public interface PColumn extends PDatum {
     boolean isRowTimestamp();
     
     boolean isDynamic();
+    
+    /**
+     * @return name of the HBase column qualifier
+     * TODO: samarth I think we should should change this to return byte[] array.
+     * Then we won't have to worry about calling SchemaUtil... everywhere 
+     */
+    Integer getEncodedColumnQualifier();
 }

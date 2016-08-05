@@ -69,6 +69,7 @@ import org.apache.phoenix.schema.TableRef;
 import org.apache.phoenix.trace.TracingIterator;
 import org.apache.phoenix.trace.util.Tracing;
 import org.apache.phoenix.util.ByteUtil;
+import org.apache.phoenix.util.EncodedColumnsUtil;
 import org.apache.phoenix.util.IndexUtil;
 import org.apache.phoenix.util.LogUtil;
 import org.apache.phoenix.util.SQLCloseable;
@@ -297,11 +298,6 @@ public abstract class BaseQueryPlan implements QueryPlan {
             // TODO: can have an hint to skip joining back to data table, in that case if any column to
             // project is not present in the index then we need to skip this plan.
             if (!dataColumns.isEmpty()) {
-                // Set data columns to be join back from data table.
-                serializeDataTableColumnsToJoin(scan, dataColumns);
-                KeyValueSchema schema = ProjectedColumnExpression.buildSchema(dataColumns);
-                // Set key value schema of the data columns.
-                serializeSchemaIntoScan(scan, schema);
                 PTable parentTable = context.getCurrentTable().getTable();
                 String parentSchemaName = parentTable.getParentSchemaName().getString();
                 String parentTableName = parentTable.getParentTableName().getString();
@@ -312,6 +308,12 @@ public abstract class BaseQueryPlan implements QueryPlan {
                             FACTORY.namedTable(null, TableName.create(parentSchemaName, parentTableName)),
                             context.getConnection()).resolveTable(parentSchemaName, parentTableName);
                 PTable dataTable = dataTableRef.getTable();
+                // Set data columns to be join back from data table.
+                serializeDataTableColumnsToJoin(scan, dataColumns, dataTable);
+                KeyValueSchema schema = ProjectedColumnExpression.buildSchema(dataColumns);
+                // Set key value schema of the data columns.
+                serializeSchemaIntoScan(scan, schema);
+                
                 // Set index maintainer of the local index.
                 serializeIndexMaintainerIntoScan(scan, dataTable);
                 // Set view constants if exists.
@@ -414,14 +416,14 @@ public abstract class BaseQueryPlan implements QueryPlan {
         }
     }
 
-    private void serializeDataTableColumnsToJoin(Scan scan, Set<PColumn> dataColumns) {
+    private void serializeDataTableColumnsToJoin(Scan scan, Set<PColumn> dataColumns, PTable dataTable) {
         ByteArrayOutputStream stream = new ByteArrayOutputStream();
         try {
             DataOutputStream output = new DataOutputStream(stream);
             WritableUtils.writeVInt(output, dataColumns.size());
             for (PColumn column : dataColumns) {
                 Bytes.writeByteArray(output, column.getFamilyName().getBytes());
-                Bytes.writeByteArray(output, column.getName().getBytes());
+                Bytes.writeByteArray(output, EncodedColumnsUtil.getColumnQualifier(column, dataTable));
             }
             scan.setAttribute(BaseScannerRegionObserver.DATA_TABLE_COLUMNS_TO_JOIN, stream.toByteArray());
         } catch (IOException e) {

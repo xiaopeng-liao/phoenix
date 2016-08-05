@@ -18,6 +18,9 @@
 package org.apache.phoenix.util;
 
 import static org.apache.phoenix.query.QueryConstants.LOCAL_INDEX_COLUMN_FAMILY_PREFIX;
+import static org.apache.phoenix.query.QueryConstants.VALUE_COLUMN_FAMILY;
+import static org.apache.phoenix.query.QueryConstants.VALUE_COLUMN_QUALIFIER;
+
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -192,7 +195,7 @@ public class IndexUtil {
             throw new IllegalArgumentException("Could not find column family \"" +  indexColumnName.substring(0, pos) + "\" in index column name of \"" + indexColumnName + "\"", e);
         }
         try {
-            return family.getColumn(indexColumnName.substring(pos+1));
+            return family.getPColumnForColumnName(indexColumnName.substring(pos+1));
         } catch (ColumnNotFoundException e) {
             throw new IllegalArgumentException("Could not find column \"" +  indexColumnName.substring(pos+1) + "\" in index column name of \"" + indexColumnName + "\"", e);
         }
@@ -219,10 +222,11 @@ public class IndexUtil {
 
     private static boolean isEmptyKeyValue(PTable table, ColumnReference ref) {
         byte[] emptyKeyValueCF = SchemaUtil.getEmptyColumnFamily(table);
+        byte[] emptyKeyValueQualifier = EncodedColumnsUtil.getEmptyKeyValueInfo(table).getFirst();
         return (Bytes.compareTo(emptyKeyValueCF, 0, emptyKeyValueCF.length, ref.getFamilyWritable()
                 .get(), ref.getFamilyWritable().getOffset(), ref.getFamilyWritable().getLength()) == 0 && Bytes
-                .compareTo(QueryConstants.EMPTY_COLUMN_BYTES, 0,
-                    QueryConstants.EMPTY_COLUMN_BYTES.length, ref.getQualifierWritable().get(), ref
+                .compareTo(emptyKeyValueQualifier, 0,
+                        emptyKeyValueQualifier.length, ref.getQualifierWritable().get(), ref
                             .getQualifierWritable().getOffset(), ref.getQualifierWritable()
                             .getLength()) == 0);
     }
@@ -501,139 +505,142 @@ public class IndexUtil {
             }
             
             // TODO: handle null case (but shouldn't happen)
+            //TODO: samarth confirm if this is the right thing to do here i.e. pass false for look up.
             Tuple joinTuple = new ResultTuple(joinResult);
             // This will create a byte[] that captures all of the values from the data table
             byte[] value =
                     tupleProjector.getSchema().toBytes(joinTuple, tupleProjector.getExpressions(),
                         tupleProjector.getValueBitSet(), ptr);
             KeyValue keyValue =
-                    KeyValueUtil.newKeyValue(firstCell.getRowArray(),firstCell.getRowOffset(),firstCell.getRowLength(), TupleProjector.VALUE_COLUMN_FAMILY,
-                        TupleProjector.VALUE_COLUMN_QUALIFIER, firstCell.getTimestamp(), value, 0, value.length);
+                    KeyValueUtil.newKeyValue(firstCell.getRowArray(),firstCell.getRowOffset(),firstCell.getRowLength(), VALUE_COLUMN_FAMILY,
+                        VALUE_COLUMN_QUALIFIER, firstCell.getTimestamp(), value, 0, value.length);
             result.add(keyValue);
         }
         for (int i = 0; i < result.size(); i++) {
             final Cell cell = result.get(i);
-            // TODO: Create DelegateCell class instead
-            Cell newCell = new Cell() {
+            if (cell != null) {
+                // TODO: Create DelegateCell class instead
+                Cell newCell = new Cell() {
 
-                @Override
-                public byte[] getRowArray() {
-                    return cell.getRowArray();
-                }
+                    @Override
+                    public byte[] getRowArray() {
+                        return cell.getRowArray();
+                    }
 
-                @Override
-                public int getRowOffset() {
-                    return cell.getRowOffset() + offset;
-                }
+                    @Override
+                    public int getRowOffset() {
+                        return cell.getRowOffset() + offset;
+                    }
 
-                @Override
-                public short getRowLength() {
-                    return (short)(cell.getRowLength() - offset);
-                }
+                    @Override
+                    public short getRowLength() {
+                        return (short)(cell.getRowLength() - offset);
+                    }
 
-                @Override
-                public byte[] getFamilyArray() {
-                    return cell.getFamilyArray();
-                }
+                    @Override
+                    public byte[] getFamilyArray() {
+                        return cell.getFamilyArray();
+                    }
 
-                @Override
-                public int getFamilyOffset() {
-                    return cell.getFamilyOffset();
-                }
+                    @Override
+                    public int getFamilyOffset() {
+                        return cell.getFamilyOffset();
+                    }
 
-                @Override
-                public byte getFamilyLength() {
-                    return cell.getFamilyLength();
-                }
+                    @Override
+                    public byte getFamilyLength() {
+                        return cell.getFamilyLength();
+                    }
 
-                @Override
-                public byte[] getQualifierArray() {
-                    return cell.getQualifierArray();
-                }
+                    @Override
+                    public byte[] getQualifierArray() {
+                        return cell.getQualifierArray();
+                    }
 
-                @Override
-                public int getQualifierOffset() {
-                    return cell.getQualifierOffset();
-                }
+                    @Override
+                    public int getQualifierOffset() {
+                        return cell.getQualifierOffset();
+                    }
 
-                @Override
-                public int getQualifierLength() {
-                    return cell.getQualifierLength();
-                }
+                    @Override
+                    public int getQualifierLength() {
+                        return cell.getQualifierLength();
+                    }
 
-                @Override
-                public long getTimestamp() {
-                    return cell.getTimestamp();
-                }
+                    @Override
+                    public long getTimestamp() {
+                        return cell.getTimestamp();
+                    }
 
-                @Override
-                public byte getTypeByte() {
-                    return cell.getTypeByte();
-                }
+                    @Override
+                    public byte getTypeByte() {
+                        return cell.getTypeByte();
+                    }
 
-                @Override
-                public long getMvccVersion() {
-                    return cell.getMvccVersion();
-                }
+                    @Override
+                    public long getMvccVersion() {
+                        return cell.getMvccVersion();
+                    }
 
-                @Override
-                public byte[] getValueArray() {
-                    return cell.getValueArray();
-                }
+                    @Override
+                    public byte[] getValueArray() {
+                        return cell.getValueArray();
+                    }
 
-                @Override
-                public int getValueOffset() {
-                    return cell.getValueOffset();
-                }
+                    @Override
+                    public int getValueOffset() {
+                        return cell.getValueOffset();
+                    }
 
-                @Override
-                public int getValueLength() {
-                    return cell.getValueLength();
-                }
+                    @Override
+                    public int getValueLength() {
+                        return cell.getValueLength();
+                    }
 
-                @Override
-                public byte[] getTagsArray() {
-                    return cell.getTagsArray();
-                }
+                    @Override
+                    public byte[] getTagsArray() {
+                        return cell.getTagsArray();
+                    }
 
-                @Override
-                public int getTagsOffset() {
-                    return cell.getTagsOffset();
-                }
+                    @Override
+                    public int getTagsOffset() {
+                        return cell.getTagsOffset();
+                    }
 
-                @Override
-                public short getTagsLength() {
-                    return cell.getTagsLength();
-                }
+                    @Override
+                    public short getTagsLength() {
+                        return cell.getTagsLength();
+                    }
 
-                @Override
-                public byte[] getValue() {
-                    return cell.getValue();
-                }
+                    @Override
+                    public byte[] getValue() {
+                        return cell.getValue();
+                    }
 
-                @Override
-                public byte[] getFamily() {
-                    return cell.getFamily();
-                }
+                    @Override
+                    public byte[] getFamily() {
+                        return cell.getFamily();
+                    }
 
-                @Override
-                public byte[] getQualifier() {
-                    return cell.getQualifier();
-                }
+                    @Override
+                    public byte[] getQualifier() {
+                        return cell.getQualifier();
+                    }
 
-                @Override
-                public byte[] getRow() {
-                    return cell.getRow();
-                }
+                    @Override
+                    public byte[] getRow() {
+                        return cell.getRow();
+                    }
 
-                @Override
-                @Deprecated
-                public int getTagsLengthUnsigned() {
-                    return cell.getTagsLengthUnsigned();
-                }
-            };
-            // Wrap cell in cell that offsets row key
-            result.set(i, newCell);
+                    @Override
+                    @Deprecated
+                    public int getTagsLengthUnsigned() {
+                        return cell.getTagsLengthUnsigned();
+                    }
+                };
+                // Wrap cell in cell that offsets row key
+                result.set(i, newCell);
+            }
         }
     }
     

@@ -17,33 +17,28 @@
  */
 package org.apache.phoenix.schema.tuple;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import java.util.List;
 
 import org.apache.hadoop.hbase.Cell;
+import org.apache.hadoop.hbase.KeyValue;
 import org.apache.hadoop.hbase.io.ImmutableBytesWritable;
-import org.apache.phoenix.hbase.index.util.GenericKeyValueBuilder;
-import org.apache.phoenix.util.KeyValueUtil;
+import org.apache.phoenix.schema.SortOrder;
+import org.apache.phoenix.schema.types.PInteger;
 
-
-public class MultiKeyValueTuple extends BaseTuple {
-    private List<Cell> values;
+public class PositionBasedResultTuple extends BaseTuple {
+    private final EncodedColumnQualiferCellsList cells;
     
-    public MultiKeyValueTuple(List<Cell> values) {
-        setKeyValues(values);
-    }
-    
-    public MultiKeyValueTuple() {
-    }
-
-    /** Caller must not modify the list that is passed here */
-    @Override
-    public void setKeyValues(List<Cell> values) {
-        this.values = values;
+    //TODO: samarth see if we can get rid of this constructor altogether.
+    public PositionBasedResultTuple(List<Cell> list) {
+        checkArgument(list instanceof EncodedColumnQualiferCellsList, "Invalid list type");
+        this.cells = (EncodedColumnQualiferCellsList)list;
     }
     
     @Override
     public void getKey(ImmutableBytesWritable ptr) {
-        Cell value = values.get(0);
+        Cell value = cells.getFirstCell();
         ptr.set(value.getRowArray(), value.getRowOffset(), value.getRowLength());
     }
 
@@ -53,29 +48,33 @@ public class MultiKeyValueTuple extends BaseTuple {
     }
 
     @Override
-    public Cell getValue(byte[] family, byte[] qualifier) {
-        return KeyValueUtil.getColumnLatest(GenericKeyValueBuilder.INSTANCE, values, family, qualifier);
+    public KeyValue getValue(byte[] family, byte[] qualifier) {
+        int columnQualifier = PInteger.INSTANCE.getCodec().decodeInt(qualifier, 0, SortOrder.ASC);
+        return org.apache.hadoop.hbase.KeyValueUtil.ensureKeyValue(cells.getCellForColumnQualifier(columnQualifier));
     }
 
+    //TODO: samarth implement this.
     @Override
     public String toString() {
-        return values.toString();
+      StringBuilder sb = new StringBuilder();
+      sb.append("keyvalues=");
+      return sb.toString();
     }
 
     @Override
     public int size() {
-        return values.size();
+        return cells.size();
     }
 
     @Override
-    public Cell getValue(int index) {
-        return values.get(index);
+    public KeyValue getValue(int index) {
+        return org.apache.hadoop.hbase.KeyValueUtil.ensureKeyValue(cells.get(index));
     }
 
     @Override
     public boolean getValue(byte[] family, byte[] qualifier,
             ImmutableBytesWritable ptr) {
-        Cell kv = getValue(family, qualifier);
+        KeyValue kv = getValue(family, qualifier);
         if (kv == null)
             return false;
         ptr.set(kv.getValueArray(), kv.getValueOffset(), kv.getValueLength());

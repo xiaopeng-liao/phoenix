@@ -80,7 +80,7 @@ public class ListJarsQueryPlan implements QueryPlan {
         PColumn column =
                 new PColumnImpl(PNameFactory.newName("jar_location"), null,
                         PVarchar.INSTANCE, null, null, false, 0, SortOrder.getDefault(), 0, null,
-                        false, null, false, false);
+                        false, null, false, false, null);
         List<PColumn> columns = new ArrayList<PColumn>();
         columns.add(column);
         Expression expression =
@@ -165,6 +165,7 @@ public class ListJarsQueryPlan implements QueryPlan {
                                 Type.Put.getCode(), HConstants.EMPTY_BYTE_ARRAY);
                     List<Cell> cells = new ArrayList<Cell>(1);
                     cells.add(cell);
+                    //TODO: samarth confirm if passing false is the right thing to do here.
                     return new ResultTuple(Result.create(cells));
                 } catch (IOException e) {
                     throw new SQLException(e);
